@@ -12,8 +12,6 @@ stable
 as $$
 select format($doc$
 
-<!-- reference-depth-v2 -->
-
 ## 운영 모델 상세
 
 %1$s 문서는 %2$s를 기능 설명이 아니라 운영 판단 단위로 다룹니다. 핵심은 기능을 켜는 방법이 아니라 workload, transaction 경계, 실행 계획, lock 범위, log volume, replication lag, recovery 절차가 함께 어떻게 변하는지 확인하는 것입니다. 같은 기능이라도 OLTP, batch, analytics, read replica, backup window에서는 위험 지점이 달라집니다.
@@ -239,4 +237,4 @@ set content = d.content || a.appendix,
 from appendices a
 where d.slug = a.slug
   and a.appendix <> ''
-  and position('<!-- reference-depth-v2 -->' in d.content) = 0;
+  and position('## 운영 모델 상세' in d.content) = 0;

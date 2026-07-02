@@ -14,6 +14,8 @@ function sqlDialectFromClassName(className: string | undefined): SqlDialect | nu
 }
 
 export function MarkdownRenderer({ content }: { content: string }) {
+  const displayContent = content.replace(/<!--[\s\S]*?-->/g, "");
+
   return (
     <article className="prose-docs">
       <ReactMarkdown
@@ -42,7 +44,7 @@ export function MarkdownRenderer({ content }: { content: string }) {
           }
         }}
       >
-        {content}
+        {displayContent}
       </ReactMarkdown>
     </article>
   );
