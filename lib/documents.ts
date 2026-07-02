@@ -1,4 +1,5 @@
 import type { DocumentInput, WikiDocument } from "@/types/document";
+import { getDbmsSections, normalizeDbmsFilter } from "./dbms-filter";
 import { seedDocuments } from "./seed";
 import { tagPathSegment } from "./routes";
 import { createAdminClient, hasSupabaseAdminEnv } from "./supabase/admin";
@@ -9,6 +10,37 @@ const documentSelect = `
   tags:document_tags(tags(*)),
   official_docs(*)
 `;
+
+const dbmsPageCategoryRank: Record<WikiDocument["category"], number> = {
+  dbms: 0,
+  concept: 1,
+  advanced: 2,
+  case: 3
+};
+
+const dbmsPageTopicRank: Record<string, number> = {
+  architecture: 0,
+  index: 10,
+  mvcc: 20,
+  "transaction-isolation": 30,
+  lock: 40,
+  "execution-plan": 50,
+  "optimizer-statistics": 60,
+  partitioning: 100,
+  replication: 110,
+  "materialized-view": 120,
+  "json-jsonb": 130,
+  "full-text-search": 140,
+  "monitoring-observability": 150,
+  "large-upload": 200,
+  "batch-insert": 210,
+  "read-replica": 220,
+  "large-table-migration": 230,
+  "backup-recovery": 240,
+  "connection-pool-exhaustion": 250,
+  "deadlock-analysis": 260,
+  "slow-query-tuning": 270
+};
 
 function normalizeDocument(row: any): WikiDocument {
   return {
@@ -87,13 +119,32 @@ export async function listDocumentsByCategory(category: WikiDocument["category"]
 
 export async function listDocumentsByDbms(dbms: string) {
   const documents = await listPublishedDocuments();
-  const normalizedDbms = dbms.toLowerCase();
-  return documents.filter((doc) => {
-    const slug = doc.slug.toLowerCase().replace(/^\/+/, "");
-    const slugMatch = slug.startsWith(`dbms/${normalizedDbms}/`);
-    const tagMatch = doc.tags?.some((tag) => tag.name.toLowerCase() === normalizedDbms);
-    return slugMatch || tagMatch;
-  });
+  const normalizedDbms = normalizeDbmsFilter(dbms);
+  if (!normalizedDbms) return [];
+
+  return documents
+    .filter((doc) => {
+      const slug = doc.slug.toLowerCase().replace(/^\/+/, "");
+      const slugMatch = slug.startsWith(`dbms/${normalizedDbms}/`);
+      const tagMatch = doc.tags?.some((tag) => tagPathSegment(tag.name) === normalizedDbms);
+      const sectionMatch = getDbmsSections(doc.content).includes(normalizedDbms);
+      return slugMatch || tagMatch || sectionMatch;
+    })
+    .sort(compareDbmsPageDocuments);
+}
+
+function compareDbmsPageDocuments(a: WikiDocument, b: WikiDocument) {
+  return (
+    dbmsPageCategoryRank[a.category] - dbmsPageCategoryRank[b.category] ||
+    topicRank(a.slug) - topicRank(b.slug) ||
+    a.title.localeCompare(b.title) ||
+    a.slug.localeCompare(b.slug)
+  );
+}
+
+function topicRank(slug: string) {
+  const topic = slug.toLowerCase().replace(/^\/+/, "").split("/").at(-1) ?? "";
+  return dbmsPageTopicRank[topic] ?? 999;
 }
 
 export async function listDocumentsByTag(tag: string) {

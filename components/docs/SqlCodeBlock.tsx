@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { clsx } from "clsx";
 
 type SqlTokenType = "keyword" | "function" | "string" | "number" | "comment" | "operator" | "identifier";
+export type SqlDialect = "sql" | "mysql" | "postgresql" | "oracle";
 
 type SqlToken = {
   value: string;
@@ -82,9 +84,9 @@ const tokenClassName: Record<SqlTokenType, string> = {
   identifier: "text-slate-100"
 };
 
-export function SqlCodeBlock({ code }: { code: string }) {
+export function SqlCodeBlock({ code, dialect = "sql" }: { code: string; dialect?: SqlDialect }) {
   return (
-    <code className="language-sql sql-code">
+    <code className={clsx("language-sql sql-code", dialect !== "sql" && `sql-${dialect}`)}>
       {tokenizeSql(code).map((token, index) => (
         <span key={`${index}-${token.value}`} className={tokenClassName[token.type]}>
           {token.value}

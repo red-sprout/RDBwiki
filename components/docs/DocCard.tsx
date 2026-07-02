@@ -3,10 +3,10 @@ import type { WikiDocument } from "@/types/document";
 import { docHref } from "@/lib/routes";
 import { TagBadge } from "./TagBadge";
 
-export function DocCard({ document }: { document: WikiDocument }) {
+export function DocCard({ document, href }: { document: WikiDocument; href?: string }) {
   return (
     <Link
-      href={docHref(document.slug)}
+      href={href ?? docHref(document.slug)}
       className="block rounded-lg border border-border bg-white p-4 transition-colors hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900"
     >
       <div className="text-base font-semibold text-slate-950 dark:text-white">{document.title}</div>

@@ -33,18 +33,83 @@ export function dbmsFilterLabel(dbms: DbmsFilter) {
   return dbmsHeadingLabels[dbms];
 }
 
+export function detectSqlDialect(code: string): DbmsFilter | null {
+  const normalized = code.toLowerCase();
+
+  if (
+    normalized.includes("performance_schema") ||
+    normalized.includes("information_schema.innodb") ||
+    normalized.includes("json_unquote") ||
+    normalized.includes("json_extract") ||
+    normalized.includes("show engine innodb") ||
+    normalized.includes("show processlist")
+  ) {
+    return "mysql";
+  }
+
+  if (
+    normalized.includes("pg_stat") ||
+    normalized.includes("pg_locks") ||
+    normalized.includes("pg_blocking_pids") ||
+    normalized.includes("jsonb") ||
+    normalized.includes("->>") ||
+    normalized.includes(" ilike ")
+  ) {
+    return "postgresql";
+  }
+
+  if (
+    normalized.includes("v$") ||
+    normalized.includes("dbms_") ||
+    normalized.includes("json_value") ||
+    normalized.includes("json_table") ||
+    normalized.includes("varchar2") ||
+    normalized.includes("fetch first")
+  ) {
+    return "oracle";
+  }
+
+  return null;
+}
+
 export function filterMarkdownByDbms(markdown: string, selectedDbms: DbmsFilter | null) {
   if (!selectedDbms) return markdown;
-
-  const availableSections = getDbmsSections(markdown);
-  if (!availableSections.includes(selectedDbms)) return markdown;
 
   const lines = markdown.split("\n");
   const filtered: string[] = [];
   let activeDbmsSection: DbmsFilter | null = null;
+  let activeCodeFenceLanguage: string | null = null;
+  let activeCodeFenceLines: string[] = [];
   let skipping = false;
 
   for (const line of lines) {
+    const codeFence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
+    if (codeFence && activeCodeFenceLanguage === null) {
+      activeCodeFenceLanguage = codeFence[1]?.toLowerCase() ?? "";
+      activeCodeFenceLines = [line];
+      continue;
+    }
+
+    if (line.match(/^```\s*$/) && activeCodeFenceLanguage !== null) {
+      activeCodeFenceLines.push(line);
+      const explicitDbms = normalizeDbmsFilter(activeCodeFenceLanguage);
+      const inferredDbms = activeCodeFenceLanguage === "sql" ? detectSqlDialect(activeCodeFenceLines.slice(1, -1).join("\n")) : null;
+      const codeFenceDbms = explicitDbms ?? inferredDbms;
+
+      if (!skipping && (!codeFenceDbms || codeFenceDbms === selectedDbms)) {
+        filtered.push(...activeCodeFenceLines);
+      }
+
+      activeCodeFenceLanguage = null;
+      activeCodeFenceLines = [];
+      continue;
+    }
+
+    if (activeCodeFenceLanguage !== null) {
+      activeCodeFenceLines.push(line);
+      continue;
+    }
+
     const dbmsHeading = line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
     const h2Heading = line.match(/^##\s+/);
 
