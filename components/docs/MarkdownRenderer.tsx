@@ -37,7 +37,7 @@ export function MarkdownRenderer({ content }: { content: string }) {
               return <SqlCodeBlock code={code} dialect={dialect === "sql" ? detectSqlDialect(code) ?? "sql" : dialect} />;
             }
             return (
-              <InlineCode {...props}>
+              <InlineCode className={className} {...props}>
                 {children}
               </InlineCode>
             );

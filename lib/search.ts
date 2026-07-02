@@ -1,12 +1,12 @@
 import type { WikiDocument } from "@/types/document";
 import { listPublishedDocuments } from "./documents";
 
-export async function searchDocuments(query: string): Promise<WikiDocument[]> {
+export async function searchDocuments(query: string, documents?: WikiDocument[]): Promise<WikiDocument[]> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
 
-  const documents = await listPublishedDocuments();
-  return documents.filter((doc) => {
+  const searchableDocuments = documents ?? await listPublishedDocuments();
+  return searchableDocuments.filter((doc) => {
     const haystack = [
       doc.title,
       doc.description ?? "",

@@ -7,7 +7,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const q = resolvedSearchParams.q ?? "";
   const documents = await listPublishedDocuments();
-  const results = q ? await searchDocuments(q) : documents;
+  const results = q ? await searchDocuments(q, documents) : documents;
 
   return (
     <DocsLayout documents={documents}>

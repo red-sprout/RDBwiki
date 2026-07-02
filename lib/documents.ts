@@ -61,7 +61,8 @@ export async function listPublishedDocuments(): Promise<WikiDocument[]> {
     .is("deleted_at", null)
     .order("slug");
 
-  if (error || !data) return seedDocuments.filter((doc) => doc.status === "published");
+  if (error) throw new Error(`Failed to list published documents: ${error.message}`);
+  if (!data) return [];
   return data.map(normalizeDocument);
 }
 
@@ -75,7 +76,8 @@ export async function listAllDocuments(): Promise<WikiDocument[]> {
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
 
-  if (error || !data) return seedDocuments;
+  if (error) throw new Error(`Failed to list admin documents: ${error.message}`);
+  if (!data) return [];
   return data.map(normalizeDocument);
 }
 
@@ -119,6 +121,10 @@ export async function listDocumentsByCategory(category: WikiDocument["category"]
 
 export async function listDocumentsByDbms(dbms: string) {
   const documents = await listPublishedDocuments();
+  return filterDocumentsByDbms(documents, dbms);
+}
+
+export function filterDocumentsByDbms(documents: WikiDocument[], dbms: string) {
   const normalizedDbms = normalizeDbmsFilter(dbms);
   if (!normalizedDbms) return [];
 
@@ -149,6 +155,10 @@ function topicRank(slug: string) {
 
 export async function listDocumentsByTag(tag: string) {
   const documents = await listPublishedDocuments();
+  return filterDocumentsByTag(documents, tag);
+}
+
+export function filterDocumentsByTag(documents: WikiDocument[], tag: string) {
   const normalizedTag = tagPathSegment(decodeURIComponent(tag));
   return documents.filter((doc) =>
     doc.tags?.some((item) => tagPathSegment(item.name) === normalizedTag)
@@ -173,12 +183,21 @@ export async function createDocument(input: DocumentInput) {
     .single();
 
   if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error("Document was created without an id.");
   await replaceDocumentJoins(data.id, input);
   return data.id as string;
 }
 
 export async function updateDocument(id: string, input: DocumentInput) {
   const supabase = createAdminClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("documents")
+    .select("published_at")
+    .eq("id", id)
+    .single();
+
+  if (existingError) throw new Error(existingError.message);
+
   const { error } = await supabase
     .from("documents")
     .update({
@@ -189,7 +208,7 @@ export async function updateDocument(id: string, input: DocumentInput) {
       category: input.category,
       level: input.level,
       status: input.status,
-      published_at: input.status === "published" ? new Date().toISOString() : null,
+      published_at: input.status === "published" ? existing?.published_at ?? new Date().toISOString() : null,
       updated_at: new Date().toISOString()
     })
     .eq("id", id);
@@ -218,21 +237,11 @@ export async function softDeleteDocument(id: string) {
 
 async function replaceDocumentJoins(documentId: string, input: DocumentInput) {
   const supabase = createAdminClient();
-
-  await supabase.from("document_tags").delete().eq("document_id", documentId);
-  if (input.tag_ids?.length) {
-    const { error } = await supabase
-      .from("document_tags")
-      .insert(input.tag_ids.map((tagId) => ({ document_id: documentId, tag_id: tagId })));
-    if (error) throw new Error(error.message);
-  }
-
-  await supabase.from("official_docs").delete().eq("document_id", documentId);
   const officialDocs = input.official_docs?.filter((doc) => doc.title && doc.url) ?? [];
-  if (officialDocs.length) {
-    const { error } = await supabase
-      .from("official_docs")
-      .insert(officialDocs.map((doc) => ({ ...doc, document_id: documentId })));
-    if (error) throw new Error(error.message);
-  }
+  const { error } = await supabase.rpc("replace_document_joins", {
+    p_document_id: documentId,
+    p_tag_ids: input.tag_ids ?? [],
+    p_official_docs: officialDocs
+  });
+  if (error) throw new Error(error.message);
 }

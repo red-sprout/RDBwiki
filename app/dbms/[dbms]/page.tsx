@@ -2,13 +2,13 @@ import { notFound } from "next/navigation";
 import { DocCard } from "@/components/docs/DocCard";
 import { DocsLayout } from "@/components/docs/DocsLayout";
 import { dbmsItems, docHref } from "@/lib/routes";
-import { listDocumentsByDbms, listPublishedDocuments } from "@/lib/documents";
+import { filterDocumentsByDbms, listPublishedDocuments } from "@/lib/documents";
 
 export default async function DbmsPage({ params }: { params: Promise<{ dbms: string }> }) {
   const { dbms } = await params;
   if (!dbmsItems.includes(dbms as any)) notFound();
   const documents = await listPublishedDocuments();
-  const dbmsDocs = await listDocumentsByDbms(dbms);
+  const dbmsDocs = filterDocumentsByDbms(documents, dbms);
 
   return (
     <DocsLayout documents={documents}>

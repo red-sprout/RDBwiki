@@ -96,8 +96,8 @@ export function SqlCodeBlock({ code, dialect = "sql" }: { code: string; dialect?
   );
 }
 
-export function InlineCode({ children }: { children: ReactNode }) {
-  return <code>{children}</code>;
+export function InlineCode({ children, className }: { children: ReactNode; className?: string }) {
+  return <code className={className}>{children}</code>;
 }
 
 function tokenizeSql(code: string): SqlToken[] {

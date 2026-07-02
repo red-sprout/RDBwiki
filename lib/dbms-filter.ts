@@ -11,6 +11,7 @@ const dbmsHeadingLabels: Record<DbmsFilter, string> = {
 const headingToFilter = new Map(
   Object.entries(dbmsHeadingLabels).map(([value, label]) => [label.toLowerCase(), value as DbmsFilter])
 );
+const dbmsH2Pattern = /^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i;
 
 export function normalizeDbmsFilter(value: string | undefined): DbmsFilter | null {
   if (!value) return null;
@@ -21,7 +22,7 @@ export function normalizeDbmsFilter(value: string | undefined): DbmsFilter | nul
 export function getDbmsSections(markdown: string): DbmsFilter[] {
   const sections = new Set<DbmsFilter>();
   for (const line of markdown.split("\n")) {
-    const match = line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
+    const match = line.match(dbmsH2Pattern);
     if (!match) continue;
     const dbms = headingToFilter.get(match[1].toLowerCase());
     if (dbms) sections.add(dbms);
@@ -110,7 +111,7 @@ export function filterMarkdownByDbms(markdown: string, selectedDbms: DbmsFilter 
       continue;
     }
 
-    const dbmsHeading = line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
+    const dbmsHeading = line.match(dbmsH2Pattern);
     const h2Heading = line.match(/^##\s+/);
 
     if (dbmsHeading) {

@@ -1,12 +1,12 @@
 import { DocCard } from "@/components/docs/DocCard";
 import { DocsLayout } from "@/components/docs/DocsLayout";
-import { listDocumentsByTag, listPublishedDocuments } from "@/lib/documents";
+import { filterDocumentsByTag, listPublishedDocuments } from "@/lib/documents";
 import { tagPathSegment } from "@/lib/routes";
 
 export default async function TagPage({ params }: { params: Promise<{ tag: string }> }) {
   const { tag } = await params;
   const documents = await listPublishedDocuments();
-  const tagDocs = await listDocumentsByTag(tag);
+  const tagDocs = filterDocumentsByTag(documents, tag);
   const label =
     documents
       .flatMap((document) => document.tags ?? [])
