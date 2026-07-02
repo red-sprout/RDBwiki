@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --muted: 210 40% 97%;
+  --muted-foreground: 215 16% 47%;
+  --border: 214 32% 91%;
+}
+
+.dark {
+  --background: 222 47% 8%;
+  --foreground: 210 40% 98%;
+  --muted: 217 33% 14%;
+  --muted-foreground: 215 20% 65%;
+  --border: 217 33% 20%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: #dbeafe;
+  color: #0f172a;
+}
+
+.prose-docs {
+  @apply max-w-none text-[15px] leading-7 text-slate-800 dark:text-slate-200;
+}
+
+.prose-docs h1 {
+  @apply mb-4 mt-0 border-b border-border pb-4 text-4xl font-semibold tracking-normal text-slate-950 dark:text-white;
+}
+
+.prose-docs h2 {
+  @apply mb-3 mt-10 scroll-m-24 border-b border-border pb-2 text-2xl font-semibold tracking-normal text-slate-950 dark:text-white;
+}
+
+.prose-docs h3 {
+  @apply mb-2 mt-7 scroll-m-24 text-xl font-semibold tracking-normal text-slate-950 dark:text-white;
+}
+
+.prose-docs p {
+  @apply my-4;
+}
+
+.prose-docs a {
+  @apply font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-600 dark:text-slate-100 dark:decoration-slate-600 dark:hover:decoration-slate-300;
+}
+
+.prose-docs :is(h1, h2, h3) a {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+}
+
+.prose-docs :is(h1, h2, h3) a:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.prose-docs ul,
+.prose-docs ol {
+  @apply my-4 pl-6;
+}
+
+.prose-docs ul {
+  @apply list-disc;
+}
+
+.prose-docs ol {
+  @apply list-decimal;
+}
+
+.prose-docs code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[13px] text-slate-900 dark:bg-slate-800 dark:text-slate-100;
+}
+
+.prose-docs pre {
+  @apply relative my-5 overflow-x-auto rounded-lg border border-border bg-slate-950 p-4 text-sm leading-6 text-slate-50;
+  tab-size: 2;
+}
+
+.prose-docs pre code {
+  @apply bg-transparent p-0 text-slate-50;
+}
+
+.prose-docs pre:has(code.language-sql) {
+  @apply pt-10;
+}
+
+.prose-docs pre:has(code.language-sql)::before {
+  content: "SQL";
+  @apply absolute left-0 top-0 rounded-br-md border-b border-r border-slate-800 bg-slate-900 px-3 py-1 font-mono text-[11px] font-semibold tracking-normal text-slate-300;
+}
+
+.prose-docs code.language-sql {
+  @apply block whitespace-pre font-mono text-[13px] font-medium leading-7;
+}
+
+.prose-docs code.sql-code span {
+  @apply tracking-normal;
+}
+
+.prose-docs table {
+  @apply my-6 w-full border-collapse overflow-hidden text-sm;
+}
+
+.prose-docs th {
+  @apply border border-border bg-slate-100 px-3 py-2 text-left font-semibold text-slate-950 dark:bg-slate-800 dark:text-white;
+}
+
+.prose-docs td {
+  @apply border border-border px-3 py-2 align-top;
+}

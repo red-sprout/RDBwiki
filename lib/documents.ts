@@ -1,0 +1,187 @@
+import type { DocumentInput, WikiDocument } from "@/types/document";
+import { seedDocuments } from "./seed";
+import { tagPathSegment } from "./routes";
+import { createAdminClient, hasSupabaseAdminEnv } from "./supabase/admin";
+import { createClient, hasSupabaseEnv } from "./supabase/server";
+
+const documentSelect = `
+  *,
+  tags:document_tags(tags(*)),
+  official_docs(*)
+`;
+
+function normalizeDocument(row: any): WikiDocument {
+  return {
+    ...row,
+    tags: row.tags?.map((item: any) => item.tags).filter(Boolean) ?? [],
+    official_docs: row.official_docs ?? []
+  };
+}
+
+export async function listPublishedDocuments(): Promise<WikiDocument[]> {
+  if (!hasSupabaseEnv()) return seedDocuments.filter((doc) => doc.status === "published");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select(documentSelect)
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .order("slug");
+
+  if (error || !data) return seedDocuments.filter((doc) => doc.status === "published");
+  return data.map(normalizeDocument);
+}
+
+export async function listAllDocuments(): Promise<WikiDocument[]> {
+  if (!hasSupabaseAdminEnv()) return seedDocuments;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select(documentSelect)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+
+  if (error || !data) return seedDocuments;
+  return data.map(normalizeDocument);
+}
+
+export async function getPublishedDocumentBySlug(slug: string): Promise<WikiDocument | null> {
+  if (!hasSupabaseEnv()) {
+    return seedDocuments.find((doc) => doc.slug === slug && doc.status === "published") ?? null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select(documentSelect)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .single();
+
+  if (error || !data) return null;
+  return normalizeDocument(data);
+}
+
+export async function getAdminDocumentById(id: string): Promise<WikiDocument | null> {
+  if (!hasSupabaseAdminEnv()) return seedDocuments.find((doc) => doc.id === id) ?? null;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select(documentSelect)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .single();
+
+  if (error || !data) return null;
+  return normalizeDocument(data);
+}
+
+export async function listDocumentsByCategory(category: WikiDocument["category"]) {
+  const documents = await listPublishedDocuments();
+  return documents.filter((doc) => doc.category === category);
+}
+
+export async function listDocumentsByDbms(dbms: string) {
+  const documents = await listPublishedDocuments();
+  const normalizedDbms = dbms.toLowerCase();
+  return documents.filter((doc) => {
+    const slug = doc.slug.toLowerCase().replace(/^\/+/, "");
+    const slugMatch = slug.startsWith(`dbms/${normalizedDbms}/`);
+    const tagMatch = doc.tags?.some((tag) => tag.name.toLowerCase() === normalizedDbms);
+    return slugMatch || tagMatch;
+  });
+}
+
+export async function listDocumentsByTag(tag: string) {
+  const documents = await listPublishedDocuments();
+  const normalizedTag = tagPathSegment(decodeURIComponent(tag));
+  return documents.filter((doc) =>
+    doc.tags?.some((item) => tagPathSegment(item.name) === normalizedTag)
+  );
+}
+
+export async function createDocument(input: DocumentInput) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .insert({
+      title: input.title,
+      slug: input.slug,
+      description: input.description,
+      content: input.content,
+      category: input.category,
+      level: input.level,
+      status: input.status,
+      published_at: input.status === "published" ? new Date().toISOString() : null
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+  await replaceDocumentJoins(data.id, input);
+  return data.id as string;
+}
+
+export async function updateDocument(id: string, input: DocumentInput) {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("documents")
+    .update({
+      title: input.title,
+      slug: input.slug,
+      description: input.description,
+      content: input.content,
+      category: input.category,
+      level: input.level,
+      status: input.status,
+      published_at: input.status === "published" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+  await replaceDocumentJoins(id, input);
+}
+
+export async function archiveDocument(id: string) {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("documents")
+    .update({ status: "archived", updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function softDeleteDocument(id: string) {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("documents")
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+async function replaceDocumentJoins(documentId: string, input: DocumentInput) {
+  const supabase = createAdminClient();
+
+  await supabase.from("document_tags").delete().eq("document_id", documentId);
+  if (input.tag_ids?.length) {
+    const { error } = await supabase
+      .from("document_tags")
+      .insert(input.tag_ids.map((tagId) => ({ document_id: documentId, tag_id: tagId })));
+    if (error) throw new Error(error.message);
+  }
+
+  await supabase.from("official_docs").delete().eq("document_id", documentId);
+  const officialDocs = input.official_docs?.filter((doc) => doc.title && doc.url) ?? [];
+  if (officialDocs.length) {
+    const { error } = await supabase
+      .from("official_docs")
+      .insert(officialDocs.map((doc) => ({ ...doc, document_id: documentId })));
+    if (error) throw new Error(error.message);
+  }
+}
