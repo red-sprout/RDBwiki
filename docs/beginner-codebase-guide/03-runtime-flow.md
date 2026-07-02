@@ -74,7 +74,7 @@ import { listPublishedDocuments } from "@/lib/documents";
 - `/`: `app/page.tsx`
 - `/docs`: `app/docs/[[...slug]]/page.tsx`
 - `/docs/concepts/mvcc`: `app/docs/[[...slug]]/page.tsx`
-- `/docs/concepts/mvcc?dbms=mysql`: 같은 문서에서 MySQL 섹션만 필터링합니다.
+- `/docs/concepts/mvcc?dbms=mysql`: 같은 문서에서 MySQL 섹션과 MySQL SQL 예시만 필터링해 보여줍니다.
 - `/dbms/mysql`: `app/dbms/[dbms]/page.tsx`
 - `/tags/MVCC`: `app/tags/[tag]/page.tsx`
 - `/admin/documents`: `app/admin/documents/page.tsx`

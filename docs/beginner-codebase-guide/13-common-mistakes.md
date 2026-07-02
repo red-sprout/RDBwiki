@@ -204,11 +204,11 @@ npm run lint
 
 ### 왜 발생하는가
 
-필터가 문서 본문 heading을 기준으로 생성된다는 점을 놓치기 때문입니다.
+필터 버튼은 문서 본문 h2 heading을 기준으로 생성된다는 점을 놓치기 때문입니다.
 
 ### 문제가 되는 이유
 
-문서에 `## MySQL` 같은 heading이 없으면 필터가 표시되지 않습니다.
+문서에 `## MySQL` 같은 h2 heading이 없으면 필터가 표시되지 않습니다. `## MySQL / PostgreSQL`처럼 DBMS명으로 시작하는 h2는 잡히지만, h3는 잡히지 않습니다.
 
 ### 잘못된 코드
 
@@ -229,3 +229,39 @@ npm run lint
 ### 예방 방법
 
 DBMS별 섹션은 h2 heading으로 작성합니다.
+
+## DBMS를 선택했는데 SQL 예시가 모두 보이는 실수
+
+### 왜 발생하는가
+
+본문 섹션과 SQL 코드블록 필터링이 별도 단계라는 점을 놓치기 때문입니다.
+
+### 문제가 되는 이유
+
+섹션 heading은 맞아도 코드블록이 모두 범용 `sql` 코드펜스이고, `detectSqlDialect()`가 추론할 단서가 없으면 선택한 DBMS가 아닌 예시도 남을 수 있습니다.
+
+### 잘못된 코드
+
+````md
+```sql
+select * from users;
+```
+````
+
+### 올바른 코드
+
+````md
+```postgresql
+select * from users;
+```
+````
+
+또는 MySQL/PostgreSQL/Oracle을 구분할 수 있는 시스템 뷰나 함수가 들어간 SQL을 사용합니다.
+
+### 관련 파일
+
+`lib/dbms-filter.ts`, `components/docs/MarkdownRenderer.tsx`, `components/docs/SqlCodeBlock.tsx`
+
+### 예방 방법
+
+새 문서를 작성할 때 DBMS별 예시는 `mysql`, `postgresql`, `oracle` 코드펜스로 명시합니다. 기존 범용 `sql` 문서는 런타임 추론이 보정하지만, 추론할 단서가 없는 SQL은 공통 예시로 남습니다.

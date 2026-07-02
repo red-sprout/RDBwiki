@@ -23,7 +23,7 @@ GET /docs/concepts/mvcc?dbms=mysql
 4. `normalizeSlug()`로 URL slug와 문서 slug를 비교합니다.
 5. `getDbmsSections(document.content)`로 본문에 있는 DBMS 섹션을 찾습니다.
 6. `normalizeDbmsFilter()`로 query 값을 검증합니다.
-7. `filterMarkdownByDbms()`로 선택 DBMS 섹션만 남깁니다.
+7. `filterMarkdownByDbms()`로 선택 DBMS 섹션과 선택 DBMS SQL 코드블록만 남깁니다.
 8. `MarkdownRenderer`가 Markdown을 렌더링합니다.
 
 ## 텍스트 흐름도
@@ -57,6 +57,8 @@ const content = filterMarkdownByDbms(document.content, activeDbms);
 
 `params`와 `searchParams`는 현재 코드에서 Promise이므로 `await`합니다. `normalizeSlug`는 앞뒤 `/`를 제거하고 URL 인코딩을 풉니다. `activeDbms`는 query 값이 허용된 DBMS이고 실제 문서에 해당 섹션이 있을 때만 설정됩니다.
 
+`filterMarkdownByDbms()`는 두 단계로 본문을 줄입니다. 먼저 `## MySQL`, `## PostgreSQL`, `## Oracle` 같은 h2 섹션을 기준으로 다른 DBMS 섹션을 건너뜁니다. 그 다음 코드펜스 언어가 `mysql`, `postgresql`, `oracle`이거나, 범용 `sql` 코드블록에서 DBMS 특징을 추론할 수 있으면 선택 DBMS와 맞지 않는 코드블록을 제거합니다.
+
 ## 데이터 모양 변화
 
 URL path/query  
@@ -68,7 +70,7 @@ URL path/query
 
 ## 정상 흐름
 
-문서가 있고 `dbms=mysql`이 유효하면 MySQL 섹션만 표시합니다. query가 없으면 전체 문서를 표시합니다.
+문서가 있고 `dbms=mysql`이 유효하면 MySQL 섹션과 MySQL SQL 예시만 표시합니다. query가 없으면 전체 문서를 표시합니다.
 
 ## 에러 흐름
 
@@ -100,8 +102,81 @@ export const dbmsFilterValues = ["mysql", "postgresql", "oracle", "mariadb"] as 
 ## 이 기능을 이해했는지 확인하는 체크리스트
 
 - `?dbms=mysql`이 어떤 함수에서 검증되는지 찾을 수 있습니다.
-- Markdown 섹션 필터가 `## MySQL` heading을 기준으로 동작한다는 점을 설명할 수 있습니다.
+- Markdown 섹션 필터가 DBMS h2 heading과 SQL 코드블록 추론을 함께 사용한다는 점을 설명할 수 있습니다.
 - official docs도 active DBMS에 맞게 필터링된다는 점을 설명할 수 있습니다.
+
+# DBMS별 문서 목록과 자동 선택
+
+## 사용자가 하는 행동
+
+사용자가 `/dbms/mysql`로 이동한 뒤 문서 카드를 클릭합니다.
+
+## 외부 요청 또는 실행 명령
+
+```text
+GET /dbms/mysql
+```
+
+## 진입 파일과 진입 함수
+
+파일: `app/dbms/[dbms]/page.tsx`  
+함수: `DbmsPage`
+
+## 전체 실행 흐름
+
+1. `params`에서 `dbms` 값을 await합니다.
+2. `dbmsItems`에 없는 값이면 `notFound()`를 호출합니다.
+3. `listPublishedDocuments()`로 전체 공개 문서를 가져옵니다.
+4. `filterDocumentsByDbms(documents, dbms)`로 관련 문서만 추립니다.
+5. `DocCard`의 `href`에 `?dbms=${dbms}`를 붙여 렌더링합니다.
+6. 사용자가 카드를 열면 상세 페이지에서 같은 DBMS가 자동 선택됩니다.
+
+## 텍스트 흐름도
+
+Client  
+→ `DbmsPage`  
+→ `listPublishedDocuments()`  
+→ `filterDocumentsByDbms()`  
+→ `DocCard href="/docs/...?..."`  
+→ `DocPage`
+
+## 핵심 코드 블록
+
+```tsx
+const documents = await listPublishedDocuments();
+const dbmsDocs = filterDocumentsByDbms(documents, dbms);
+```
+
+```tsx
+<DocCard key={document.id} document={document} href={`${docHref(document.slug)}?dbms=${dbms}`} />
+```
+
+## 코드 블록별 해설
+
+`filterDocumentsByDbms()`는 slug, 태그, 본문 DBMS 섹션을 모두 봅니다. `href`에 query를 붙이는 부분이 “DBMS 목록에서 들어갔을 때 자동 선택”을 만드는 핵심입니다.
+
+## 데이터 모양 변화
+
+`/dbms/mysql`  
+→ `dbms: "mysql"`  
+→ `WikiDocument[]` 전체 목록  
+→ MySQL 관련 문서 목록  
+→ `/docs/...?...dbms=mysql` 링크
+
+## 정상 흐름
+
+DBMS 소개, 개념, 고급 기능, 사례 문서가 학습 순서에 맞게 정렬되어 보입니다.
+
+## 에러 흐름
+
+`/dbms/sqlserver`처럼 허용되지 않은 DBMS path는 404입니다.
+
+## 이 기능에서 수정 가능한 지점
+
+- 허용 DBMS 목록: `lib/routes.ts`
+- 관련 문서 판정: `filterDocumentsByDbms()`
+- 정렬 순서: `dbmsPageCategoryRank`, `dbmsPageTopicRank`
+- 자동 선택 링크: `app/dbms/[dbms]/page.tsx`
 
 # 홈 검색
 
@@ -308,14 +383,18 @@ select * from documents;
 ## 전체 실행 흐름
 
 1. `ReactMarkdown`이 Markdown을 파싱합니다.
-2. code block의 `className`에 `language-sql`이 있는지 봅니다.
-3. SQL이면 `SqlCodeBlock`을 렌더링합니다.
-4. `tokenizeSql()`이 keyword, function, string, number, comment 등을 분류합니다.
+2. HTML 주석을 제거한 `displayContent`를 렌더링합니다.
+3. code block의 `className`에서 `sql`, `mysql`, `postgresql`, `oracle` 언어를 찾습니다.
+4. SQL 계열이면 `SqlCodeBlock`을 렌더링합니다.
+5. 범용 `sql`이면 `detectSqlDialect()`로 DBMS를 추론합니다.
+6. `tokenizeSql()`이 keyword, function, string, number, comment 등을 분류합니다.
 
 ## 텍스트 흐름도
 
 Markdown code block  
 → `ReactMarkdown components.code`  
+→ `sqlDialectFromClassName`  
+→ `detectSqlDialect`  
 → `SqlCodeBlock`  
 → `tokenizeSql`  
 → colored spans
@@ -323,25 +402,27 @@ Markdown code block
 ## 핵심 코드 블록
 
 ```tsx
-if (className?.includes("language-sql")) {
-  return <SqlCodeBlock code={code} />;
+const dialect = sqlDialectFromClassName(className);
+if (dialect) {
+  return <SqlCodeBlock code={code} dialect={dialect === "sql" ? detectSqlDialect(code) ?? "sql" : dialect} />;
 }
 ```
 
 ## 코드 블록별 해설
 
-SQL 코드 블록만 직접 하이라이팅하고, 나머지 inline code는 `InlineCode`로 렌더링합니다.
+SQL 계열 코드 블록만 직접 하이라이팅하고, 나머지 inline code는 `InlineCode`로 렌더링합니다. `mysql`, `postgresql`, `oracle` 코드펜스는 그대로 dialect가 되고, `sql` 코드펜스는 코드 내용으로 DBMS를 추론합니다.
 
 ## 데이터 모양 변화
 
 Markdown 문자열  
 → code block children  
+→ dialect  
 → SQL token 배열  
 → `<span>` 목록
 
 ## 정상 흐름
 
-SQL 키워드와 문자열 등이 색상 class로 표시됩니다.
+SQL 키워드와 문자열 등이 색상 class로 표시됩니다. DBMS를 알 수 있는 코드블록은 라벨이 `SQL` 대신 `MySQL`, `PostgreSQL`, `Oracle`로 표시됩니다.
 
 ## 에러 흐름
 
@@ -370,5 +451,6 @@ SQL 키워드와 문자열 등이 색상 class로 표시됩니다.
 
 ## 이 기능을 이해했는지 확인하는 체크리스트
 
-- `language-sql` 여부가 어디서 판단되는지 찾을 수 있습니다.
+- `language-sql`, `language-mysql`, `language-postgresql`, `language-oracle` 여부가 어디서 판단되는지 찾을 수 있습니다.
+- 범용 `sql` 코드블록의 DBMS 추론이 `detectSqlDialect()`에서 이루어진다는 점을 설명할 수 있습니다.
 - `SqlCodeBlock`이 SQL 실행기가 아니라 표시용 tokenizer라는 점을 설명할 수 있습니다.

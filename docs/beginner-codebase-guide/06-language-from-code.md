@@ -213,16 +213,16 @@ document.official_docs?.filter(...)
 ### 프로젝트 코드 예시
 
 ```ts
-line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
+line.match(/^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i);
 ```
 
 ### 코드 해석
 
-Markdown 줄이 `## MySQL`, `## PostgreSQL`, `## Oracle` 중 하나인지 확인합니다.
+Markdown 줄이 `## MySQL`, `## PostgreSQL`, `## Oracle` 중 하나로 시작하는 h2인지 확인합니다. DBMS 이름 뒤에는 공백, `/`, `:`, `-`, 줄 끝이 올 수 있습니다.
 
 ### 이 프로젝트에서 쓰인 이유
 
-문서 본문에서 DBMS 섹션 heading을 찾아야 하기 때문입니다.
+문서 본문에서 DBMS 섹션 heading을 찾아야 하기 때문입니다. 상세 페이지 필터 버튼과 DBMS별 문서 목록 판정에서 이 결과를 사용합니다.
 
 ### 비슷한 문법과의 차이
 
@@ -230,20 +230,20 @@ Markdown 줄이 `## MySQL`, `## PostgreSQL`, `## Oracle` 중 하나인지 확인
 
 ### 초심자가 자주 하는 오해
 
-정규식이 Markdown parser를 완전히 대신한다고 생각할 수 있습니다. 현재 코드는 필요한 heading만 검사합니다.
+정규식이 Markdown parser를 완전히 대신한다고 생각할 수 있습니다. 현재 코드는 필요한 h2 heading과 코드펜스만 직접 검사합니다.
 
 ### 직접 수정해볼 수 있는 예시
 
 수정 전:
 
 ```ts
-/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i
+/^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i
 ```
 
 수정 후:
 
 ```ts
-/^##\s+(MySQL|PostgreSQL|Oracle|MariaDB)\s*$/i
+/^##\s+(MySQL|PostgreSQL|Oracle|MariaDB)(?:\s|\/|:|-|$)/i
 ```
 
 ## JSX

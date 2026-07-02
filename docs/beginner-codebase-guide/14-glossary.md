@@ -26,9 +26,9 @@
 용어: 정규식  
 분류: JavaScript 문법  
 한 줄 설명: 문자열 패턴을 찾는 표현식입니다.  
-프로젝트 코드 예시: `/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i`  
+프로젝트 코드 예시: `/^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i`  
 관련 파일: `lib/dbms-filter.ts`  
-주의할 점: 현재 코드는 특정 heading만 찾습니다.
+주의할 점: 현재 코드는 DBMS h2 heading과 코드펜스만 직접 검사합니다.
 
 ## 프레임워크
 
@@ -86,8 +86,8 @@
 용어: clsx  
 분류: 유틸리티 라이브러리  
 한 줄 설명: 조건부 className을 합칩니다.  
-프로젝트 코드 예시: `clsx("inline-flex", active && "bg-slate-950")`  
-관련 파일: `DbmsSectionFilter`, `Button`  
+프로젝트 코드 예시: `clsx("language-sql sql-code", dialect !== "sql" && "sql-mysql")`  
+관련 파일: `DbmsSectionFilter`, `Button`, `SqlCodeBlock`  
 주의할 점: false 값은 출력되지 않습니다.
 
 ## 빌드 도구
@@ -133,10 +133,17 @@
 
 용어: DBMS 필터  
 분류: 프로젝트 규칙  
-한 줄 설명: 문서 본문 중 특정 DBMS h2 섹션만 보여주는 기능입니다.  
+한 줄 설명: 문서 본문 중 특정 DBMS h2 섹션과 SQL 예시만 보여주는 기능입니다.  
 프로젝트 코드 예시: `filterMarkdownByDbms(document.content, activeDbms)`  
 관련 파일: `lib/dbms-filter.ts`  
-주의할 점: heading이 `## MySQL`처럼 정확해야 합니다.
+주의할 점: 필터 버튼은 h2 heading에서 만들고, SQL 예시는 코드펜스 언어 또는 `detectSqlDialect()` 추론으로 거릅니다.
+
+용어: SQL dialect 추론  
+분류: 프로젝트 규칙  
+한 줄 설명: 범용 `sql` 코드블록을 MySQL/PostgreSQL/Oracle 예시로 추정하는 규칙입니다.  
+프로젝트 코드 예시: `detectSqlDialect(code)`  
+관련 파일: `lib/dbms-filter.ts`, `components/docs/MarkdownRenderer.tsx`  
+주의할 점: 완전한 SQL parser가 아니라 화면 필터링용 휴리스틱입니다.
 
 용어: seed fallback  
 분류: 프로젝트 규칙  

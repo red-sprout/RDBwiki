@@ -44,6 +44,15 @@
 ### 핵심 코드 블록
 
 ```ts
+const dbmsPageCategoryRank: Record<WikiDocument["category"], number> = {
+  dbms: 0,
+  concept: 1,
+  advanced: 2,
+  case: 3
+};
+```
+
+```ts
 const documentSelect = `
   *,
   tags:document_tags(tags(*)),
@@ -63,7 +72,28 @@ function normalizeDocument(row: any): WikiDocument {
 
 ### 코드 블록별 해설
 
-Supabase join 결과를 앱에서 쓰기 쉬운 `WikiDocument` 형태로 바꿉니다. `tags`는 중첩된 join 결과라 `map`으로 한 단계 꺼냅니다.
+`dbmsPageCategoryRank`는 DBMS별 목록에서 문서가 보일 순서를 정합니다. DBMS 소개 문서를 먼저 보여주고, 개념, 고급 기능, 사례 순서로 이어집니다.
+
+Supabase join 결과는 앱에서 쓰기 쉬운 `WikiDocument` 형태로 바꿉니다. `tags`는 중첩된 join 결과라 `map`으로 한 단계 꺼냅니다.
+
+```ts
+export function filterDocumentsByDbms(documents: WikiDocument[], dbms: string) {
+  const normalizedDbms = normalizeDbmsFilter(dbms);
+  if (!normalizedDbms) return [];
+
+  return documents
+    .filter((doc) => {
+      const slug = doc.slug.toLowerCase().replace(/^\/+/, "");
+      const slugMatch = slug.startsWith(`dbms/${normalizedDbms}/`);
+      const tagMatch = doc.tags?.some((tag) => tagPathSegment(tag.name) === normalizedDbms);
+      const sectionMatch = getDbmsSections(doc.content).includes(normalizedDbms);
+      return slugMatch || tagMatch || sectionMatch;
+    })
+    .sort(compareDbmsPageDocuments);
+}
+```
+
+DBMS별 목록은 세 가지 근거를 봅니다. slug가 `dbms/mysql/...`처럼 시작하는지, 태그가 DBMS명인지, 본문에 `## MySQL` 같은 섹션이 있는지 확인합니다. 마지막에 `compareDbmsPageDocuments()`로 학습 순서에 맞게 정렬합니다.
 
 ### 이 파일에서 사용된 언어 문법
 
@@ -75,7 +105,7 @@ Supabase query builder입니다.
 
 ### 초심자가 수정할 수 있는 부분
 
-정렬 기준, 필터 조건, 저장 필드입니다.
+정렬 기준, 필터 조건, 저장 필드입니다. DBMS 목록 순서를 바꾸려면 `dbmsPageCategoryRank`와 `dbmsPageTopicRank`를 함께 봅니다.
 
 ### 수정 전 코드
 
@@ -101,11 +131,11 @@ Supabase query builder입니다.
 
 ### 이 파일의 역할
 
-문서 Markdown에서 DBMS별 h2 섹션을 찾고 선택 DBMS 섹션만 남깁니다.
+문서 Markdown에서 DBMS별 h2 섹션을 찾고 선택 DBMS 섹션만 남깁니다. 또한 `sql` 코드블록 내용으로 MySQL/PostgreSQL/Oracle 예시를 추론해 선택한 DBMS와 맞지 않는 SQL 블록을 숨깁니다.
 
 ### 이 파일이 필요한 이유
 
-하나의 비교 문서에서 MySQL/PostgreSQL/Oracle 섹션만 골라 볼 수 있게 합니다.
+하나의 비교 문서에서 MySQL/PostgreSQL/Oracle 섹션만 골라 볼 수 있게 합니다. 기존 문서처럼 코드펜스가 모두 `sql`로 저장되어 있어도 런타임에서 DBMS를 추론해 보정합니다.
 
 ### 이 파일과 연결된 다른 파일
 
@@ -114,10 +144,14 @@ Supabase query builder입니다.
 ### 핵심 코드 블록
 
 ```ts
+const dbmsH2Pattern = /^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i;
+```
+
+```ts
 export function getDbmsSections(markdown: string): DbmsFilter[] {
   const sections = new Set<DbmsFilter>();
   for (const line of markdown.split("\n")) {
-    const match = line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
+    const match = line.match(dbmsH2Pattern);
     if (!match) continue;
     const dbms = headingToFilter.get(match[1].toLowerCase());
     if (dbms) sections.add(dbms);
@@ -128,7 +162,41 @@ export function getDbmsSections(markdown: string): DbmsFilter[] {
 
 ### 코드 블록별 해설
 
-각 줄을 검사해 `## MySQL` 같은 제목을 찾습니다. 찾은 DBMS만 필터 버튼에 표시됩니다.
+`dbmsH2Pattern`은 `## MySQL`, `## MySQL / PostgreSQL`, `## Oracle: 구조`처럼 DBMS명 뒤에 공백, `/`, `:`, `-`가 오는 h2를 찾습니다. 각 줄을 검사해 찾은 DBMS만 필터 버튼에 표시됩니다.
+
+```ts
+export function detectSqlDialect(code: string): DbmsFilter | null {
+  const normalized = code.toLowerCase();
+
+  if (normalized.includes("performance_schema") || normalized.includes("show processlist")) {
+    return "mysql";
+  }
+
+  if (normalized.includes("pg_stat") || normalized.includes("jsonb")) {
+    return "postgresql";
+  }
+
+  if (normalized.includes("v$") || normalized.includes("dbms_")) {
+    return "oracle";
+  }
+
+  return null;
+}
+```
+
+`detectSqlDialect()`는 SQL 문자열 안의 대표 키워드와 시스템 뷰 이름을 보고 DBMS를 추론합니다. 완전한 SQL parser가 아니라 화면 필터링을 위한 보조 규칙입니다.
+
+```ts
+const explicitDbms = normalizeDbmsFilter(activeCodeFenceLanguage);
+const inferredDbms = activeCodeFenceLanguage === "sql" ? detectSqlDialect(activeCodeFenceLines.slice(1, -1).join("\n")) : null;
+const codeFenceDbms = explicitDbms ?? inferredDbms;
+
+if (!skipping && (!codeFenceDbms || codeFenceDbms === selectedDbms)) {
+  filtered.push(...activeCodeFenceLines);
+}
+```
+
+코드펜스 언어가 `mysql`, `postgresql`, `oracle`이면 명시 DBMS로 봅니다. 언어가 `sql`이면 본문을 추론합니다. 추론된 DBMS가 선택 DBMS와 다르면 해당 코드블록은 결과 Markdown에 넣지 않습니다.
 
 ### 이 파일에서 사용된 언어 문법
 
@@ -140,18 +208,18 @@ const assertion, union type, `Set`, `Map`, 정규식, 반복문입니다.
 
 ### 초심자가 수정할 수 있는 부분
 
-지원 DBMS 추가, heading 패턴 변경입니다.
+지원 DBMS 추가, heading 패턴 변경, SQL 추론 키워드 추가입니다.
 
 ### 수정 전 코드
 
 ```ts
-const match = line.match(/^##\s+(MySQL|PostgreSQL|Oracle)\s*$/i);
+const dbmsH2Pattern = /^##\s+(MySQL|PostgreSQL|Oracle)(?:\s|\/|:|-|$)/i;
 ```
 
 ### 수정 후 코드
 
 ```ts
-const match = line.match(/^##\s+(MySQL|PostgreSQL|Oracle|MariaDB)\s*$/i);
+const dbmsH2Pattern = /^##\s+(MySQL|PostgreSQL|Oracle|MariaDB)(?:\s|\/|:|-|$)/i;
 ```
 
 ### 수정 시 영향받는 파일
@@ -160,7 +228,7 @@ const match = line.match(/^##\s+(MySQL|PostgreSQL|Oracle|MariaDB)\s*$/i);
 
 ### 이 파일을 이해한 뒤 알아야 하는 것
 
-이 필터는 Markdown heading 규칙에 의존합니다.
+이 필터는 Markdown h2 heading 규칙과 SQL 코드블록 추론 규칙에 의존합니다. 추론되지 않는 범용 SQL은 선택 DBMS와 관계없이 남습니다.
 
 ## `app/admin/documents/actions.ts`
 
